@@ -390,7 +390,9 @@ void State_WBC::run()
     {
         _refer_idx = _end_refer_idx;
     }
-    _observations_compute(); 
+    // 构建观测
+    _observations_compute();
+    // 前向传播并计算力矩 
     _action_compute(); 
     memcpy(this->_targetPos_rl, this->_joint_q, sizeof(this->_joint_q));
    

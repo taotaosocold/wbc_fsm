@@ -54,6 +54,8 @@ public:
 private:
     FSMState* getNextState(FSMStateName stateName);
     CtrlComponents *_ctrlComp;
+    // 用类FSMState去构建指针_currentState，然后会根据不同状态来让指针指向不同的空间比如State_WBC或者State_AMP，这些类都是继承FSMState的
+    // 所以指针可以指向，指向后就可以直接去调用里面的run函数
     FSMState *_currentState;
     FSMState *_nextState;
     FSMStateName _nextStateName;

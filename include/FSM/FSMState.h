@@ -14,7 +14,7 @@
 #include "common/timeMarker.h"
 #include "interface/CmdPanel.h"
 
-
+// FSMState类中都会有状态名称和下一个状态名称和run函数
 class FSMState{
 public:
     FSMState(CtrlComponents *ctrlComp, FSMStateName stateName, std::string stateNameString);

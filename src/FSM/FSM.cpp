@@ -1,7 +1,7 @@
 #include "FSM/FSM.h"
 #include <iostream>  
 
-// 构造函数
+// 构造函数，给每个状态都初始化分配空间，不管是哪个类State_WBC还是State_AMP都是继承类FSMState
 FSM::FSM(CtrlComponents *ctrlComp)
     // _ctrlComp(ctrlComp)就是把传入的参数ctrlComp传给_ctrlComp
     :_ctrlComp(ctrlComp){
@@ -21,6 +21,7 @@ FSM::~FSM(){
 }
 
 void FSM::initialize(){
+    // 初始化的时候，当前状态进入阻尼模式
     _currentState = _stateList.passive;
     _currentState -> enter();  
     _nextState = _currentState;
@@ -33,11 +34,12 @@ void FSM::run(){
     try{
         // 记录时间，确保频率保持在50Hz
         _startTime = getSystemTime();  
-        // 通信接口，完成一次与机器人硬件的收发
+        // 通信接口，订阅和发布数据
         _ctrlComp->sendRecv(); 
         // 状态机处理，对于正常模式
         if(_mode == FSMMode::NORMAL){  
-            // 执行当前状态的控制逻辑
+            // 这里就是根据状态机来执行不同的run函数，run函数内部会根据订阅的数据来构建观测和计算力矩
+            // 而力矩的发布得等到下一次的循环sendRecv函数才会发布出去
             _currentState->run();  
             // 检查是否满足切换条件
             _nextStateName = _currentState->checkChange();    

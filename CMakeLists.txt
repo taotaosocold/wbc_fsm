@@ -35,19 +35,15 @@ file(GLOB_RECURSE SRC_LIST
 
 add_executable(wbc_fsm src/main.cpp ${SRC_LIST})
 
-target_compile_definitions(wbc_fsm PRIVATE
-    PROJECT_ROOT_DIR="${PROJECT_SOURCE_DIR}"
+set_target_properties(wbc_fsm PROPERTIES
+    BUILD_RPATH "${ONNXRUNTIME_ROOT}/lib:/opt/ros/humble/lib"
+    INSTALL_RPATH "${ONNXRUNTIME_ROOT}/lib:/opt/ros/humble/lib"
+    BUILD_WITH_INSTALL_RPATH FALSE
+    SKIP_BUILD_RPATH FALSE
 )
 
-target_link_libraries(wbc_fsm PRIVATE
-    ${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so.1.22.0
-    rclcpp::rclcpp
-    sensor_msgs::sensor_msgs
-    geometry_msgs::geometry_msgs
-    std_msgs::std_msgs
-    nlohmann_json::nlohmann_json
-    Eigen3::Eigen
-    ${Boost_LIBRARIES}
+target_compile_definitions(wbc_fsm PRIVATE
+    PROJECT_ROOT_DIR="${PROJECT_SOURCE_DIR}"
 )
 
 ament_target_dependencies(wbc_fsm
@@ -55,6 +51,21 @@ ament_target_dependencies(wbc_fsm
     sensor_msgs
     geometry_msgs
     std_msgs
+)
+
+target_link_libraries(wbc_fsm
+    ${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so.1.22.0
+    nlohmann_json::nlohmann_json
+    Eigen3::Eigen
+    ${Boost_LIBRARIES}
+)
+
+# Fix RPATH to exclude conda library paths
+add_custom_command(TARGET wbc_fsm POST_BUILD
+    COMMAND patchelf --set-rpath
+    "${ONNXRUNTIME_ROOT}/lib:/opt/ros/humble/lib:/usr/lib/x86_64-linux-gnu"
+    $<TARGET_FILE:wbc_fsm>
+    COMMENT "Fixing RPATH for wbc_fsm"
 )
 
 install(TARGETS wbc_fsm

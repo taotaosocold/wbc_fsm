@@ -12,7 +12,7 @@ void State_FixedStand::enter(){
     _phase = 0;
     _duration = 2.0;
     _fixedstand_complete_flag = false;
-    std::cout<<"Please make the robot stand first, stabilize it, then press **R2+A** to enter Locomode"<<std::endl;
+    std::cout<<"Please make the robot stand first, then press **R1+UP** or **R2+A** to enter WBC mode"<<std::endl;
 }
 
 void State_FixedStand::run(){
@@ -42,7 +42,7 @@ FSMStateName State_FixedStand::checkChange(){
     }
     else if (_lowState->userCmd == UserCommand::R2_A)
     {
-        return FSMStateName::LOCO;
+        return FSMStateName::WBC;
     }
     else if(_lowState->userCmd == UserCommand::R1_UP)
     {

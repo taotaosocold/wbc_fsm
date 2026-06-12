@@ -4,7 +4,6 @@
 #include "FSM/FSMState.h"
 #include "FSM/State_FixedStand.h"
 #include "FSM/State_Passive.h"
-#include "FSM/State_Loco.h"
 #include "FSM/State_WBC.h"
 #include "common/enumClass.h"
 #include "control/CtrlComponents.h"
@@ -13,13 +12,11 @@ struct FSMStateList{
     FSMState *invalid;
     State_Passive *passive;
     State_FixedStand *fixedStand;
-    State_Loco *loco;
     State_WBC *wbc;
     void deletePtr(){
         delete invalid;
         delete passive;
         delete fixedStand;
-        delete loco;
         delete wbc;
     }
 };

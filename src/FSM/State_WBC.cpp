@@ -370,7 +370,7 @@ FSMStateName State_WBC::checkChange()
         return FSMStateName::PASSIVE;
     }
     else if (_lowState->userCmd == UserCommand::R2_A) {
-        return FSMStateName::LOCO;
+        return FSMStateName::FIXEDSTAND;
     }
     else if (_lowState->userCmd == UserCommand::R2 && !_pause_flag) {
         _pause_flag = true;

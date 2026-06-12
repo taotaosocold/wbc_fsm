@@ -72,7 +72,7 @@ private:
     static void cleanup(const std::string &dir)
     {
         std::string cmd = "rm -rf " + dir;
-        std::system(cmd.c_str());
+        if (std::system(cmd.c_str()) != 0) { /* ignore cleanup failure */ }
     }
 
     static bool loadNPY(const std::string &filePath, const std::string &name,

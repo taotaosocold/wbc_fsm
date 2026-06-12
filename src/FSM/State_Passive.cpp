@@ -1,31 +1,9 @@
 #include <iostream>
-#include <fstream>
 #include "FSM/State_Passive.h"
-
-using json = nlohmann::json;
 
 State_Passive::State_Passive(CtrlComponents *ctrlComp)
              :FSMState(ctrlComp, FSMStateName::PASSIVE, "passive"){
-
-    std::string config_path = std::string(PROJECT_ROOT_DIR) + "/config/passive.json";
-    std::ifstream config_file(config_path);
-    if (!config_file.is_open())
-    {
-        std::cerr << "[ERROR] Failed to open config file: " << config_path << std::endl;
-        throw std::runtime_error("Cannot open config file");
-    }
-
-    try
-    {
-        json config = json::parse(config_file);
-        _Kds = config["passive_kds"].get<double>();
-    }
-    catch (const std::exception &e)
-    {
-        std::cerr << "[ERROR] Failed to parse config file: " << e.what() << std::endl;
-        throw;
-    }
-    config_file.close();
+    _Kds = 10.0;
 }
 
 void State_Passive::enter(){

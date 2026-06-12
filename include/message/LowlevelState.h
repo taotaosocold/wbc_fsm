@@ -66,7 +66,7 @@ struct IMU
 struct LowlevelState
 {
     IMU imu;
-    MotorState motorState[29];
+    MotorState motorState[CASBOT_NUM_MOTOR];
     UserCommand userCmd;
     UserValue userValue;
 

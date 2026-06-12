@@ -1,6 +1,4 @@
-
 #include <iostream>
-#include <fstream>
 #include "FSM/State_FixedStand.h"
 
 State_FixedStand::State_FixedStand(CtrlComponents *ctrlComp)
@@ -14,30 +12,10 @@ void State_FixedStand::enter(){
     _phase = 0;
     _duration = 2.0;
     _fixedstand_complete_flag = false;
-    std::string config_path = std::string(PROJECT_ROOT_DIR) + "/config/fixedpose.json";
-    std::ifstream config_file(config_path);
-    if (!config_file.is_open())
-    {
-        std::cerr << "[ERROR] Failed to open config file: " << config_path << std::endl;
-        throw std::runtime_error("Cannot open config file");
-    }
-    try
-    {
-        json config = json::parse(config_file);
-        _duration = config["duration"].get<float>();
-    }
-    catch (const std::exception &e)
-    {
-        std::cerr << "[ERROR] Failed to parse config file: " << e.what() << std::endl;
-        throw;
-    }
-    config_file.close();
     std::cout<<"Please make the robot stand first, stabilize it, then press **R2+A** to enter Locomode"<<std::endl;
-    
 }
 
 void State_FixedStand::run(){
-
     _phase += _ctrlComp->dt / _duration;
     if(_phase >= 1){
         _fixedstand_complete_flag = true;
@@ -64,8 +42,11 @@ FSMStateName State_FixedStand::checkChange(){
     }
     else if (_lowState->userCmd == UserCommand::R2_A)
     {
-        // return FSMStateName::AMP;
-        return FSMStateName::MJAMP;
+        return FSMStateName::LOCO;
+    }
+    else if(_lowState->userCmd == UserCommand::R1_UP)
+    {
+        return FSMStateName::WBC;
     }
     else if(_lowState->userCmd == UserCommand::SELECT){
         throw std::runtime_error("exit..");

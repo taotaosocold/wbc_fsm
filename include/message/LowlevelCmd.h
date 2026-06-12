@@ -22,8 +22,10 @@ struct MotorCmd{
     }
 };
 
+#define CASBOT_NUM_MOTOR 25
+
 struct LowlevelCmd{
-    MotorCmd motorCmd[29];
+    MotorCmd motorCmd[CASBOT_NUM_MOTOR];
 };
 
 #endif  //LOWLEVELCMD_H

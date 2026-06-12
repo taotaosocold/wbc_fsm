@@ -2,11 +2,9 @@
 #ifndef PASSIVE_H
 #define PASSIVE_H
 
-#include <nlohmann/json.hpp>
 #include "FSMState.h"
 
-#define NUM_DOF 29
-using json = nlohmann::json;
+#define NUM_DOF 25
 
 class State_Passive : public FSMState{
 public:

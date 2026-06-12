@@ -8,32 +8,19 @@
 #include <iomanip>
 #include <vector>
 #include <cstring>
-#include <openssl/sha.h>
-#include <openssl/rsa.h>
-#include <openssl/pem.h>
-#include <openssl/bio.h>
-#include <openssl/err.h>
-#include <openssl/evp.h>
-#include <openssl/buffer.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <net/if.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #include "control/ControlFrame.h"
 #include "control/CtrlComponents.h"
-#include "interface/IOSDK.h"
+#include "interface/IOROS2.h"
 
-bool running = true;  
+bool running = true;
 
-
-void ShutDown(int sig) 
+void ShutDown(int sig)
 {
     std::cout << "stop the controller" << std::endl;
     running = false;
 }
 
-void setProcessScheduler()  // 实时调度设置
+void setProcessScheduler()
 {
     pid_t pid = getpid();
     sched_param param;
@@ -44,15 +31,15 @@ void setProcessScheduler()  // 实时调度设置
     }
 }
 
-int main(int argc, char **argv) {
-    
+int main(int argc, char **argv)
+{
+    rclcpp::init(argc, argv);
+
     setProcessScheduler();
     std::cout << std::fixed << std::setprecision(3);
-    IOInterface *ioInter;
-    CtrlPlatform ctrlPlat;
 
-    ioInter = new IOSDK();
-    ctrlPlat = CtrlPlatform::REALROBOT;
+    IOInterface *ioInter = new IOROS2();
+    CtrlPlatform ctrlPlat = CtrlPlatform::MUJOCO;
 
     CtrlComponents *ctrlComp = new CtrlComponents(ioInter);
     ctrlComp->ctrlPlatform = ctrlPlat;
@@ -68,5 +55,6 @@ int main(int argc, char **argv) {
     }
 
     delete ctrlComp;
+    rclcpp::shutdown();
     return 0;
 }

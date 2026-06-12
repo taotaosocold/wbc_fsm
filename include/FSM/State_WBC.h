@@ -3,6 +3,7 @@
 
 #include "FSM/FSMState.h"
 #include "common/read_traj.h"
+#include "common/npz_reader.h"
 #include "common/mathTools.h"
 #include <onnxruntime_cxx_api.h>
 #include <cstring>
@@ -14,9 +15,7 @@
 #include <cmath>
 #include <stdexcept>
 
-#define NUM_DOF 29
-
-using namespace ArmatureConstants;
+#define NUM_DOF 25
 
 class State_WBC : public FSMState
 {
@@ -27,129 +26,139 @@ public:
     void run();
     void exit();
     FSMStateName checkChange();
- 
+
 private:
     Ort::Env _env;
     Ort::SessionOptions _session_options;
     std::unique_ptr<Ort::Session> _session;
     Ort::AllocatorWithDefaultOptions _allocator;
 
-    const std::vector<const char*> _input_names = {"obs"};
-    const std::vector<const char*> _output_names = {"actions"};
+    // ONNX mode: read all 7 outputs
+    // NPZ mode: only read actions
+    const std::vector<const char*> _input_names = {"obs", "time_step"};
+    const std::vector<const char*> _output_names_all = {
+        "actions", "joint_pos", "joint_vel",
+        "body_pos_w", "body_quat_w",
+        "body_lin_vel_w", "body_ang_vel_w"
+    };
+    const std::vector<const char*> _output_names_actions = {"actions"};
 
     std::vector<int64_t> _input_shape;
     std::vector<int64_t> _output_shape;
     int64_t _obs_size_;
-    int64_t _hidden_size_;
     int64_t _action_size_;
 
     bool _start_flag = false;
-    bool _init_obs = false;
-    float _targetPos_rl[29]; 
-    float _last_targetPos_rl[29];  
+    float _targetPos_rl[NUM_DOF];
+    float _last_targetPos_rl[NUM_DOF];
 
     void _loadPolicy();
     void _observations_compute();
     void _action_compute();
 
     const float clip_observations = 100.0;
-    const float clip_actions = 100.0;  
-    const float action_scale = 0.25; 
-    const float hip_scale_reduction = 1.0;  
+    const float clip_actions = 100.0;
+    const float action_scale = 0.25;
 
     const float scale_lin_vel = 1.0;
     const float scale_ang_vel = 1.0;
     float scale_dof_pos = 1.0;
     float scale_dof_vel = 1.0;
-    float _joint_q[29];
+    float _joint_q[NUM_DOF];
 
-    std::vector<float> _action;  // 动作向量
-    std::vector<float> _observation;  // observation vector
-    std::vector<float> _current_dof_pos;  // current dof_pos
-    std::vector<float> _current_dof_vel;  // current dof_vel
-    
-    void _init_buffers();  // 参数初始化
+    std::vector<float> _action;
+    std::vector<float> _observation;
 
-    size_t _current_frame;
-    bool _traj_loaded;
-    float _current_motion_time;
+    // data source mode
+    std::string _data_source;  // "onnx" or "npz"
+    int _total_frames;
 
-    std::vector<float> _body_ang_vel_w;      // shape: (num_frames, 30, 3) - body angular velocity (world frame)
+    // autoregressive reference (ONNX mode)
+    std::vector<float> _ref_joint_pos;
+    std::vector<float> _ref_joint_vel;
+
+    // motion data from NPZ
+    std::vector<float> _body_ang_vel_w;
     std::vector<uint32_t> _body_ang_vel_w_shape;
-    
-    std::vector<float> _body_lin_vel_w;      // shape: (num_frames, 30, 3) - body linear velocity (world frame)
+
+    std::vector<float> _body_lin_vel_w;
     std::vector<uint32_t> _body_lin_vel_w_shape;
 
-    std::vector<float> _body_pos_w; // shape: (num_frames, 30, 3) - body position (world frame)
+    std::vector<float> _body_pos_w;
     std::vector<uint32_t> _body_pos_w_shape;
 
-    std::vector<float> _body_quat_w; // shape: (num_frames, 30, 4) - body quaternion (world frame)
+    std::vector<float> _body_quat_w;
     std::vector<uint32_t> _body_quat_w_shape;
-    
-    std::vector<int64_t> _fps;               // shape: (1) - frame rate
+
+    std::vector<int64_t> _fps;
     std::vector<uint32_t> _fps_shape;
 
-    std::vector<float> _joint_pos; // shape: (num_frames, 29) - joint position
+    std::vector<float> _joint_pos;
     std::vector<uint32_t> _joint_pos_shape;
 
-    std::vector<float> _joint_vel; // shape: (num_frames, 29) - joint velocity
+    std::vector<float> _joint_vel;
     std::vector<uint32_t> _joint_vel_shape;
-    
-    bool _bin_data_loaded;             
+
+    bool _bin_data_loaded;
     std::string _model_path;
-    std::string _folder_path; 
-    bool _wbc_pause = false;
-    float _motion_len;
+    std::string _folder_path;
+    std::string _motion_file_path;
     std::vector<float> _target_dof_pos;
-    const int _mimic_obs_predictive_horizon = 1; 
-    const int _frame_interval = 5; 
-    const int _actor_state_history_length = 4;
-    const int _robot_state_dim = 93; 
-    const int _reference_dim = 67;
+    const int _frame_interval = 5;
     unsigned int _refer_idx = 0;
     unsigned int _last_refer_idx = 0;
-    const int _anchor_idx = 0; // reference anchor index torso_link: 9 root: 0
-    const int _waist_yrp_idx[3] = {12, 13, 14}; // reference trajectory waist rpy indices
+    const int _anchor_idx = 0;
     bool _pause_flag = false;
-    int _start_refer_idx = 0;   // reference frame index when entering state
-    int _pause_refer_idx = 350; // reference frame index when paused
-    int _end_refer_idx = -1; // reference frame index to end WBC state
+    int _start_refer_idx = 0;
+    int _pause_refer_idx = 350;
+    int _end_refer_idx = -1;
     int _motion_frame_count = 0;
-    const std::vector<float> _gravity_vec = {0.0f, 0.0f, -1.0f}; 
-    float _anchor_terminate_thresh = 0.5f; 
-    bool _terminate_flag = false; 
+    const std::vector<float> _gravity_vec = {0.0f, 0.0f, -1.0f};
+    float _anchor_terminate_thresh = 0.5f;
+    bool _terminate_flag = false;
     bool _pause_curr_flag = false;
-    
-    std::vector<float> _robot_state_obs_buf = std::vector<float>(_robot_state_dim * _actor_state_history_length, 0.0f);
 
-    const float _default_dof_pos[NUM_DOF] = {-0.312, 0.0, 0.0, 0.669, -0.363, 0.0,
-                                        -0.312, 0.0, 0.0, 0.669, -0.363, 0.0,
-                                        0.0, 0.0, 0.0, 
-                                        0.2, 0.2, 0.0, 0.6, 0.0, 0.0, 0.0,
-                                        0.2, -0.2, 0.0, 0.6, 0.0, 0.0, 0.0,};
+    const float _default_dof_pos[NUM_DOF] = {
+        -0.1, 0.0, 0.0, 0.5, -0.175, 0.0,
+        -0.1, 0.0, 0.0, 0.5, -0.175, 0.0,
+        0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0, -0.5, 0.0,
+        0.0, 0.0, 0.0, -0.5, 0.0
+    };
 
-    const int dof_mapping[NUM_DOF] = {0, 6, 12,
-                                      1, 7, 13,
-                                      2, 8, 14,
-                                      3, 9, 15, 22,
-                                      4, 10, 16, 23,
-                                      5, 11, 17, 24,
-                                      18, 25,
-                                      19, 26,
-                                      20, 27,
-                                      21, 28}; // motor order
+    // policy output index → motor bus index
+    const int dof_mapping[NUM_DOF] = {
+        0, 3, 8, 13, 17, 21,
+        1, 4, 9, 14, 18, 22,
+        2, 5, 10, 6, 11, 15,
+        19, 23, 7, 12, 16,
+        20, 24
+    };
 
-    const double dof_Kps[NUM_DOF] = {STIFFNESS_7520_22, STIFFNESS_7520_22, STIFFNESS_7520_14, STIFFNESS_7520_22, 2.0 * STIFFNESS_5020, 2.0 * STIFFNESS_5020,
-                                STIFFNESS_7520_22, STIFFNESS_7520_22, STIFFNESS_7520_14, STIFFNESS_7520_22, 2.0 * STIFFNESS_5020, 2.0 * STIFFNESS_5020,
-                                STIFFNESS_7520_14, 2.0 * STIFFNESS_5020, 2.0 * STIFFNESS_5020,
-                                STIFFNESS_5020, STIFFNESS_5020, STIFFNESS_5020, STIFFNESS_5020, STIFFNESS_5020, STIFFNESS_5010_16, STIFFNESS_5010_16,
-                                STIFFNESS_5020, STIFFNESS_5020, STIFFNESS_5020, STIFFNESS_5020, STIFFNESS_5020, STIFFNESS_5010_16, STIFFNESS_5010_16,}; // 电机Kp参数
+    // motor bus index → policy index (inverse of dof_mapping)
+    const int motor_bus_to_policy[NUM_DOF] = {
+        0, 6, 12, 1, 7, 13,
+        15, 20, 2, 8, 14, 16,
+        21, 3, 9, 17, 22,
+        4, 10, 18, 23, 5,
+        11, 19, 24
+    };
 
-    const double dof_Kds[NUM_DOF] = {DAMPING_7520_22, DAMPING_7520_22, DAMPING_7520_14, DAMPING_7520_22, 2.0 * DAMPING_5020, 2.0 * DAMPING_5020,
-                                DAMPING_7520_22, DAMPING_7520_22, DAMPING_7520_14, DAMPING_7520_22, 2.0 * DAMPING_5020, 2.0 * DAMPING_5020,
-                                DAMPING_7520_14, 2.0 * DAMPING_5020, 2.0 * DAMPING_5020,
-                                DAMPING_5020, DAMPING_5020, DAMPING_5020, DAMPING_5020, DAMPING_5020, DAMPING_5010_16, DAMPING_5010_16,
-                                DAMPING_5020, DAMPING_5020, DAMPING_5020, DAMPING_5020, DAMPING_5020, DAMPING_5010_16, DAMPING_5010_16,}; // 电机Kd参数
+    const double dof_Kps[NUM_DOF] = {
+        276.311, 276.311, 156.310, 276.311, 156.310, 156.310,
+        276.311, 276.311, 156.310, 276.311, 156.310, 156.310,
+        0.0, 0.0, 276.311,
+        130.201, 130.201, 96.825, 130.201, 96.825,
+        130.201, 130.201, 96.825, 130.201, 96.825
+    };
+
+    const double dof_Kds[NUM_DOF] = {
+        17.591, 17.591, 9.951, 17.591, 9.951, 9.951,
+        17.591, 17.591, 9.951, 17.591, 9.951, 9.951,
+        0.0, 0.0, 17.591,
+        8.289, 8.289, 6.164, 8.289, 6.164,
+        8.289, 8.289, 6.164, 8.289, 6.164
+    };
 };
 
 #endif // WBC_H

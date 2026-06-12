@@ -1,6 +1,8 @@
 {
-    "model_path": "model/wbc/dance12_0207_1.onnx",
-    "motion_path": "motion_data/lafan1/dance12",
+    "model_path": "model/wbc/fallAndGetUp2_subject2_clip.onnx",
+    "data_source": "onnx",
+    "motion_path": "motion_data/fallAndGetUp2_subject2_clip_old.npz",
+    "total_frames": 965,
     "start_idx": 0,
     "end_idx": -1,
     "pause_idx": 350,

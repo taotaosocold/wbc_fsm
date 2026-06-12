@@ -416,23 +416,29 @@ void State_WBC::exit()
 
 FSMStateName State_WBC::checkChange()
 {
+    // 组合键L2+B
     if (_lowState->userCmd == UserCommand::L2_B)
     {
+        // 切换为阻尼模式，
         return FSMStateName::PASSIVE;
     }
+    // 若内部终止标志被置位，同样进入阻尼模式
     else if (_terminate_flag)
     {
         return FSMStateName::PASSIVE;
     }
+    // R2+A切换为AMP模式
     else if(_lowState->userCmd == UserCommand::R2_A){ 
         return FSMStateName::AMP;
     }
+    // 单独按下R2且当时不在暂停状态，则暂停WBC状态，会在JSON配置指定某个帧，策略会一直传输这个帧
     else if (_lowState->userCmd == UserCommand::R2 && !_pause_flag)
     { 
         _pause_flag = true;
         std::cout << std::endl <<"WBC Pause" <<std::endl;
         return FSMStateName::WBC;
     }
+    // 单独按下L2且当时不在暂停状态，则同样是暂停WBC状态，但额外设置了 _pause_curr_flag = true，这里策略则是一直传输当前帧，而不是配置的
     else if (_lowState->userCmd == UserCommand::L2 && !_pause_flag)
     {
         _pause_flag = true;
@@ -441,6 +447,7 @@ FSMStateName State_WBC::checkChange()
                   << "WBC Pause" << std::endl;
         return FSMStateName::WBC;
     }
+    // 单独按下R1且当前处于暂停状态则恢复运行
     else if (_lowState->userCmd == UserCommand::R1 && _pause_flag)
     { 
         _pause_flag = false;
@@ -448,10 +455,12 @@ FSMStateName State_WBC::checkChange()
         std::cout << std::endl << "WBC Resume" << std::endl;
         return FSMStateName::WBC;
     }
+    // 按下select键抛出一个运行异常
     else if(_lowState->userCmd == UserCommand::SELECT){
         throw std::runtime_error("exit..");
         return FSMStateName::PASSIVE;
     }
+    // 其他情况保持WBC状态
     else{ 
         return FSMStateName::WBC;
     }

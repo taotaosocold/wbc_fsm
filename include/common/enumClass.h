@@ -50,7 +50,7 @@ enum class FSMMode{
     NORMAL,
     CHANGE
 };
-
+// 这里FSMStateName定义了十种变量
 enum class FSMStateName{
     // EXIT,
     INVALID,

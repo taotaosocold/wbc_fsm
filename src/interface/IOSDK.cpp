@@ -89,9 +89,13 @@ void IOSDK::sendRecv(const LowlevelCmd *cmd, LowlevelState *state)
     state->userValue = userValue_;
 }
 
+// IOSDK 没有通过 CmdPanel 来读取手柄，而是直接在类内部自己做完了
+// 在 LowStateHandler 回调中，它从机器人状态报文中提取遥控器数据
 void IOSDK::LowStateHandler(const void *message)
 {
+    //将 message 强制转换为 const LowState_*（宇树 DDS 状态消息类型）,后续直接用low_state访问数据
     LowState_ low_state = *(const LowState_ *)message;
+    // crc完整性校验，校验失败则直接返回丢弃本次报文
     if (low_state.crc() != crc32_core((uint32_t *)&low_state, (sizeof(LowState_) >> 2) - 1))
     {
         std::cout << "[ERROR] CRC Error" << std::endl;
@@ -99,6 +103,7 @@ void IOSDK::LowStateHandler(const void *message)
     }
 
     // get motor state
+    // 获取电机值，_lowState 是项目统一的底层状态结构，用于后续传递给 ControlFrame
     for (int i = 0; i < G1_NUM_MOTOR; ++i)
     {
         _lowState.motorState[i].q = low_state.motor_state()[i].q();
@@ -106,6 +111,7 @@ void IOSDK::LowStateHandler(const void *message)
     }
     
     // get imu state
+    // 获得IMU的数据
     _lowState.imu.gyroscope[0] = low_state.imu_state().gyroscope()[0];
     _lowState.imu.gyroscope[1] = low_state.imu_state().gyroscope()[1];
     _lowState.imu.gyroscope[2] = low_state.imu_state().gyroscope()[2];
@@ -120,10 +126,13 @@ void IOSDK::LowStateHandler(const void *message)
     _lowState.imu.accelerometer[2] = low_state.imu_state().accelerometer()[2];
 
     // update gamepad
+    // 更新遥控器数据，low_state.wireless_remote() 返回机器人接收到的无线遥控器原始数据（40 字节），复制给rx_
     memcpy(rx_.buff, &low_state.wireless_remote()[0], 40);
+    // 用rx_值去更新gamepad_值
     gamepad_.update(rx_.RF_RX);
 
     // update mode machine
+    // 检测状态机，检测当前机器人状态机模式是否改变
     if (mode_machine_ != low_state.mode_machine())
     {
         if (mode_machine_ == 0)

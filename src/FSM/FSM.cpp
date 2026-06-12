@@ -1,8 +1,9 @@
 #include "FSM/FSM.h"
 #include <iostream>  
 
-
+// 构造函数
 FSM::FSM(CtrlComponents *ctrlComp)
+    // _ctrlComp(ctrlComp)就是把传入的参数ctrlComp传给_ctrlComp
     :_ctrlComp(ctrlComp){
     _stateList.invalid = nullptr;
     _stateList.passive = new State_Passive(_ctrlComp);
@@ -15,6 +16,7 @@ FSM::FSM(CtrlComponents *ctrlComp)
 }
 
 FSM::~FSM(){  
+    // 释放状态机的空间
     _stateList.deletePtr();
 }
 
@@ -29,20 +31,26 @@ void FSM::initialize(){
 
 void FSM::run(){
     try{
+        // 记录时间，确保频率保持在50Hz
         _startTime = getSystemTime();  
-        
+        // 通信接口，完成一次与机器人硬件的收发
         _ctrlComp->sendRecv(); 
-
+        // 状态机处理，对于正常模式
         if(_mode == FSMMode::NORMAL){  
+            // 执行当前状态的控制逻辑
             _currentState->run();  
+            // 检查是否满足切换条件
             _nextStateName = _currentState->checkChange();    
-            if(_nextStateName != _currentState->_stateName){  
+            // 如果下一个状态和当前状态不一致
+            if(_nextStateName != _currentState->_stateName){
+                // 将mode改成切换模式  
                 _mode = FSMMode::CHANGE;  
                 _nextState = getNextState(_nextStateName); 
                 std::cout << "Switched from " << _currentState->_stateNameString
                 << " to " << _nextState->_stateNameString << std::endl; 
             }
         }
+        // 如果是切换模式
         else if(_mode == FSMMode::CHANGE){  
             _currentState->exit();  
             _currentState = _nextState; 
@@ -50,8 +58,9 @@ void FSM::run(){
             _mode = FSMMode::NORMAL; 
             _currentState->run(); 
         }
-
+        // 精确等待
         absoluteWait(_startTime, (long long)(_ctrlComp->dt * 1000000));  
+    // 异常捕获
     }catch (const std::exception& e) {
         std::cerr << std::endl << "Caught exception: " << e.what() << std::endl;
         _ctrlComp->exitFlag = true;

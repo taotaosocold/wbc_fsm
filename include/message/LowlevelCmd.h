@@ -21,7 +21,7 @@ struct MotorCmd{
         Kd = 0;
     }
 };
-
+// 这里关节配置是29而不是35
 struct LowlevelCmd{
     MotorCmd motorCmd[29];
 };

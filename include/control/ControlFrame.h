@@ -12,6 +12,7 @@ public:
 		delete _FSMController;
 	}
 	void run();
+	// 申明有限状态机和共享组件
 private:
 	FSM* _FSMController;
 	CtrlComponents *_ctrlComp;

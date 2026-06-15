@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
     // 声明 IO 接口基类指针和平台类型枚举变量。IOInterface 应该是 IOSDK 的基类
     IOInterface *ioInter;
     CtrlPlatform ctrlPlat;
-    // 创建 IOSDK 实例并赋值给基类指针，这里负责与机器人硬件的实际通信
+    // 创建 IOSDK 实例并赋值给基类指针，基类指针也是可以指向其子类的实例的
     ioInter = new IOSDK();
     // 设置控制平台为真实机器人（区别于仿真），这个枚举会影响 CtrlComponents 内部行为，例如选择不同的安全检查和通信逻辑
     ctrlPlat = CtrlPlatform::REALROBOT;

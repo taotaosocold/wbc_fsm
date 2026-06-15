@@ -12,6 +12,7 @@ FSM::FSM(CtrlComponents *ctrlComp)
     _stateList.amp = new State_AMP(_ctrlComp);
     _stateList.mjamp = new State_MJAMP(_ctrlComp);
     _stateList.wbc = new State_WBC(_ctrlComp);
+    // 初始化
     initialize(); 
 }
 
@@ -23,6 +24,7 @@ FSM::~FSM(){
 void FSM::initialize(){
     // 初始化的时候，当前状态进入阻尼模式
     _currentState = _stateList.passive;
+    // 进入阻尼模式
     _currentState -> enter();  
     _nextState = _currentState;
     _mode = FSMMode::NORMAL;  

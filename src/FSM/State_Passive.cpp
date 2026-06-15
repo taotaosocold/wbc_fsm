@@ -45,11 +45,14 @@ void State_Passive::run(){
 void State_Passive::exit(){
 
 }
-
+// 返回的也是一个状态名称
 FSMStateName State_Passive::checkChange(){
+    // 检查当前接收到的用户命令是否为 START，UserCommand::START 对应手柄的 Start 键
     if(_lowState->userCmd == UserCommand::START){
+        // 如果是则返回固定站立
         return FSMStateName::FIXEDSTAND;
     }
+    // 如果是SELECT则抛出运行异常并且仍然是返回阻尼状态
     else if(_lowState->userCmd == UserCommand::SELECT){
         throw std::runtime_error("exit..");
         return FSMStateName::PASSIVE;

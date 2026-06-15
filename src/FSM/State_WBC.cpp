@@ -55,7 +55,6 @@ State_WBC::State_WBC(CtrlComponents *ctrlComp)
                 std::cerr << "[ERROR] Failed to load NPZ data!" << std::endl;
             }
         } else if (_data_source == "onnx") {
-            // autoregressive mode: no external data to load
             _bin_data_loaded = true;
             _motion_frame_count = _total_frames;
             std::cout << "[Config] ONNX autoregressive mode, total_frames: "
@@ -72,6 +71,7 @@ State_WBC::State_WBC(CtrlComponents *ctrlComp)
 
     _ref_joint_pos = std::vector<float>(NUM_DOF, 0.0f);
     _ref_joint_vel = std::vector<float>(NUM_DOF, 0.0f);
+    _ref_body_quat_w = std::vector<float>(NUM_BODIES * 4, 0.0f);
 
     _loadPolicy();
 }
@@ -127,7 +127,6 @@ void State_WBC::_observations_compute()
     std::vector<float> anchor_ori_b(6, 0.0f);
 
     if (_data_source == "npz") {
-        // Use reference motion from NPZ file
         auto get_ref_joint_pos = [this](int frame_idx) -> std::vector<float> {
             int num_dofs = _joint_pos_shape[1];
             int base = frame_idx * num_dofs;
@@ -191,23 +190,34 @@ void State_WBC::_observations_compute()
         ref_joint_pos = _ref_joint_pos;
         ref_joint_vel = _ref_joint_vel;
 
-        // anchor orientation from current base quaternion (identity matrix)
-        Eigen::Matrix3f base_mat = matrix_from_quat(base_quat);
-        anchor_ori_b[0] = base_mat(0, 0);
-        anchor_ori_b[1] = base_mat(0, 1);
-        anchor_ori_b[2] = base_mat(1, 0);
-        anchor_ori_b[3] = base_mat(1, 1);
-        anchor_ori_b[4] = base_mat(2, 0);
-        anchor_ori_b[5] = base_mat(2, 1);
-    }
+        // Compute anchor orientation from model's body_quat_w output
+        if (_warmup_done) {
+            int bo = _anchor_body_idx * 4;
+            std::vector<float> anchor_quat_ref = {
+                _ref_body_quat_w[bo + 0], _ref_body_quat_w[bo + 1],
+                _ref_body_quat_w[bo + 2], _ref_body_quat_w[bo + 3]
+            };
 
-    // --- scale ---
-    body_ang_vel[0] *= scale_lin_vel;
-    body_ang_vel[1] *= scale_lin_vel;
-    body_ang_vel[2] *= scale_ang_vel;
-    for (int i = 0; i < NUM_DOF; i++) {
-        dof_pos_policy[i] *= scale_dof_pos;
-        dof_vel_policy[i] *= scale_dof_vel;
+            // Align reference anchor yaw with robot base yaw
+            auto base_yaw_quat = yaw_quat(base_quat);
+            auto ref_yaw_quat = yaw_quat(anchor_quat_ref);
+            auto ref_yaw_quat_conj = quat_conjugate(ref_yaw_quat);
+            auto yaw_quat_delta = quat_multiply(base_yaw_quat, ref_yaw_quat_conj);
+            auto aligned_anchor_quat = quat_multiply(yaw_quat_delta, anchor_quat_ref);
+
+            // Relative orientation: base_quat_inv * aligned_anchor_quat
+            auto base_quat_inv = quat_inv(base_quat);
+            auto q_rel = quat_mul(base_quat_inv, aligned_anchor_quat);
+            Eigen::Matrix3f rel_mat = matrix_from_quat(q_rel);
+
+            anchor_ori_b[0] = rel_mat(0, 0);
+            anchor_ori_b[1] = rel_mat(0, 1);
+            anchor_ori_b[2] = rel_mat(1, 0);
+            anchor_ori_b[3] = rel_mat(1, 1);
+            anchor_ori_b[4] = rel_mat(2, 0);
+            anchor_ori_b[5] = rel_mat(2, 1);
+        }
+        // else: first step, anchor_ori_b stays all zeros (identity rotation)
     }
 
     // --- assemble observation: command(50) + anchor_ori_b(6) + ang_vel(3) + dof_pos(25) + dof_vel(25) + action(25) = 134 ---
@@ -231,11 +241,8 @@ void State_WBC::_action_compute()
     try {
         auto memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeCPU);
 
-        float time_step = 0.0f;
-        int total_frames = (_data_source == "onnx") ? _total_frames : _motion_frame_count;
-        if (total_frames > 0) {
-            time_step = static_cast<float>(_refer_idx) / std::max(1.0f, static_cast<float>(total_frames));
-        }
+        // time_step is the integer frame index (matching Python: int(self.timestep))
+        float time_step = static_cast<float>(_refer_idx);
 
         std::vector<Ort::Value> input_tensors;
         std::vector<int64_t> obs_shape = {1, _obs_size_};
@@ -253,23 +260,38 @@ void State_WBC::_action_compute()
             _input_names.data(), input_tensors.data(), input_tensors.size(),
             _output_names_all.data(), _output_names_all.size());
 
-        // read actions
+        // read actions (model order)
         float *actions = output_tensors[0].GetTensorMutableData<float>();
         std::memcpy(_action.data(), actions, _action.size() * sizeof(float));
 
-        for (int i = 0; i < NUM_DOF; i++) {
-            _action[i] = std::max(-clip_actions, std::min(_action[i], clip_actions));
-            float scaled = _action[i] * action_scale;
-            int bus = dof_mapping[i];
+        for (int p = 0; p < NUM_DOF; p++) {
+            _action[p] = std::max(-clip_actions, std::min(_action[p], clip_actions));
+            // EMA smoothing and scale with per-joint action_scale
+            float smoothed = (1.0f - action_beta) * _last_action[p] + action_beta * _action[p];
+            _action[p] = smoothed;
+            _last_action[p] = smoothed;
+
+            // Scale action and add residual (model output joint_pos as reference)
+            int bus = dof_mapping[p];
+            float scaled = smoothed * _action_scale[bus] + _ref_joint_pos[p];
             this->_joint_q[bus] = scaled + _default_dof_pos[bus];
         }
 
-        // ONNX mode: read model-generated reference for next frame
-        if (_data_source == "onnx" && output_tensors.size() >= 3) {
+        // ONNX mode: store model-generated reference for next frame
+        if (_data_source == "onnx" && output_tensors.size() >= 5) {
             float *out_joint_pos = output_tensors[1].GetTensorMutableData<float>();
             float *out_joint_vel = output_tensors[2].GetTensorMutableData<float>();
+            // outputs[3]: body_pos_w [1, 14, 3]
+            float *out_body_quat_w = output_tensors[4].GetTensorMutableData<float>(); // [1, 14, 4]
+
             std::memcpy(_ref_joint_pos.data(), out_joint_pos, NUM_DOF * sizeof(float));
             std::memcpy(_ref_joint_vel.data(), out_joint_vel, NUM_DOF * sizeof(float));
+            std::memcpy(_ref_body_quat_w.data(), out_body_quat_w, NUM_BODIES * 4 * sizeof(float));
+
+            if (!_warmup_done) {
+                _warmup_done = true;
+                std::cout << "[State_WBC] ONNX warmup complete." << std::endl;
+            }
         }
     }
     catch (const Ort::Exception &e) {
@@ -302,15 +324,15 @@ void State_WBC::enter()
         _end_refer_idx = total_frames - 1;
     }
 
-    // initialize autoregressive reference (ONNX mode)
+    // Initialize autoregressive reference (ONNX mode)
     if (_data_source == "onnx") {
         _action = std::vector<float>(_action_size_, 0.0f);
-        // set initial reference to default pose in policy order
+        _last_action.assign(NUM_DOF, 0.0f);
         for (int p = 0; p < NUM_DOF; ++p) {
-            int bus = dof_mapping[p];
-            _ref_joint_pos[p] = 0.0f; // relative to default, so 0
+            _ref_joint_pos[p] = 0.0f;
             _ref_joint_vel[p] = 0.0f;
         }
+        _warmup_done = false;
     }
 
     for (int i = 0; i < NUM_DOF; i++) {

@@ -2,6 +2,7 @@
 #include <iostream>
 #include <cstring>
 #include <chrono>
+#include <algorithm>
 
 IOROS2::IOROS2()
 {
@@ -17,8 +18,8 @@ IOROS2::IOROS2()
         "/motion/imu", 10,
         std::bind(&IOROS2::imuCallback, this, std::placeholders::_1));
 
-    _joySub = _node->create_subscription<sensor_msgs::msg::Joy>(
-        "/motion/joy", 10,
+    _joySub = _node->create_subscription<crb_ros_msg::msg::JoystickCmdReport>(
+        "/joystick_events", 10,
         std::bind(&IOROS2::joyCallback, this, std::placeholders::_1));
 
     _counter = 0;
@@ -39,7 +40,7 @@ IOROS2::IOROS2()
     std::cout << "[IOROS2] Initialized. Topics:" << std::endl;
     std::cout << "  Sub: /motion/joint_state" << std::endl;
     std::cout << "  Sub: /motion/imu" << std::endl;
-    std::cout << "  Sub: /motion/joy" << std::endl;
+    std::cout << "  Sub: /joystick_events" << std::endl;
     std::cout << "  Pub: /motion/joint_cmd" << std::endl;
 }
 
@@ -84,33 +85,38 @@ void IOROS2::imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg)
     _lowState.imu.accelerometer[2] = static_cast<float>(msg->linear_acceleration.z);
 }
 
-void IOROS2::joyCallback(const sensor_msgs::msg::Joy::SharedPtr msg)
+void IOROS2::joyCallback(const crb_ros_msg::msg::JoystickCmdReport::SharedPtr msg)
 {
     std::lock_guard<std::mutex> lock(_gamepadMutex);
 
-    if (msg->axes.size() >= 4) {
-        _userValue.lx = msg->axes[0];
-        _userValue.ly = msg->axes[1];
-        _userValue.rx = msg->axes[2];
-        _userValue.ry = msg->axes[3];
-    }
-    if (msg->axes.size() >= 5) {
-        _userValue.L2 = msg->axes[4];
-    }
+    // Helper: check if a button ID is in pressed_buttons
+    auto has = [&](uint32_t id) {
+        auto &pb = msg->pressed_buttons;
+        return std::find(pb.begin(), pb.end(), id) != pb.end();
+    };
+
+    // Axes from joystick (left_x/y, right_x/y)
+    _userValue.lx = msg->left_x;
+    _userValue.ly = msg->left_y;
+    _userValue.rx = msg->right_x;
+    _userValue.ry = msg->right_y;
+
+    // D-pad
+    bool dpad_up    = (msg->axis_y < 0);
+    bool dpad_down  = (msg->axis_y > 0);
+    bool dpad_left  = (msg->axis_x < 0);
+    bool dpad_right = (msg->axis_x > 0);
+
+    // Buttons: A=0, B=1, LB=4, RB=5, BACK=6, START=7, LT=11, RT=12
+    bool btn_a      = has(0);
+    bool btn_b      = has(1);
+    bool btn_r1     = has(5);
+    bool btn_start  = has(7);
+    bool btn_select = has(6);
+    bool axis_r2    = has(12);  // RT
+    bool axis_l2    = has(11);  // LT
 
     _userCmd = UserCommand::NONE;
-
-    bool dpad_up = (msg->axes.size() > 7 && msg->axes[7] < -0.5);
-    bool dpad_down = (msg->axes.size() > 7 && msg->axes[7] > 0.5);
-    bool dpad_left = (msg->axes.size() > 6 && msg->axes[6] < -0.5);
-    bool dpad_right = (msg->axes.size() > 6 && msg->axes[6] > 0.5);
-    bool btn_a = (msg->buttons.size() > 0 && msg->buttons[0]);
-    bool btn_b = (msg->buttons.size() > 1 && msg->buttons[1]);
-    bool btn_r1 = (msg->buttons.size() > 5 && msg->buttons[5]);
-    bool btn_start = (msg->buttons.size() > 7 && msg->buttons[7]);
-    bool btn_select = (msg->buttons.size() > 6 && msg->buttons[6]);
-    bool axis_r2 = (msg->axes.size() > 5 && msg->axes[5] > 0.5);
-    bool axis_l2 = (msg->axes.size() > 4 && msg->axes[4] > 0.5);
 
     if (btn_start) {
         _userCmd = UserCommand::START;

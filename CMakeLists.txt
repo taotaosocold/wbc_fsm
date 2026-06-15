@@ -11,6 +11,9 @@ find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(Boost REQUIRED)
+
+# Build local x86_64 crb_ros_msg (matches hl_motion message definitions)
+add_subdirectory(crb_ros_msg)
 find_package(nlohmann_json 3.7.3 REQUIRED)
 find_package(Eigen3 REQUIRED)
 
@@ -54,6 +57,7 @@ ament_target_dependencies(wbc_fsm
 )
 
 target_link_libraries(wbc_fsm
+    crb_ros_msg__rosidl_typesupport_cpp
     ${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so.1.22.0
     nlohmann_json::nlohmann_json
     Eigen3::Eigen

@@ -3,7 +3,7 @@
 
 State_Passive::State_Passive(CtrlComponents *ctrlComp)
              :FSMState(ctrlComp, FSMStateName::PASSIVE, "passive"){
-    _Kds = 10.0;
+    _Kds = 0.0;
 }
 
 void State_Passive::enter(){
@@ -27,6 +27,9 @@ void State_Passive::exit(){
 FSMStateName State_Passive::checkChange(){
     if(_lowState->userCmd == UserCommand::START){
         return FSMStateName::FIXEDSTAND;
+    }
+    else if(_lowState->userCmd == UserCommand::R2_A){
+        return FSMStateName::WBC;
     }
     else if(_lowState->userCmd == UserCommand::SELECT){
         throw std::runtime_error("exit..");

@@ -39,8 +39,8 @@ file(GLOB_RECURSE SRC_LIST
 add_executable(wbc_fsm src/main.cpp ${SRC_LIST})
 
 set_target_properties(wbc_fsm PROPERTIES
-    BUILD_RPATH "${ONNXRUNTIME_ROOT}/lib:/opt/ros/humble/lib"
-    INSTALL_RPATH "${ONNXRUNTIME_ROOT}/lib:/opt/ros/humble/lib"
+    BUILD_RPATH "${ONNXRUNTIME_ROOT}/lib:/opt/ros/humble/lib:${CMAKE_BINARY_DIR}/crb_ros_msg"
+    INSTALL_RPATH "${ONNXRUNTIME_ROOT}/lib:/opt/ros/humble/lib:${CMAKE_BINARY_DIR}/crb_ros_msg"
     BUILD_WITH_INSTALL_RPATH FALSE
     SKIP_BUILD_RPATH FALSE
 )
@@ -66,8 +66,8 @@ target_link_libraries(wbc_fsm
 
 # Fix RPATH to exclude conda library paths
 add_custom_command(TARGET wbc_fsm POST_BUILD
-    COMMAND patchelf --set-rpath
-    "${ONNXRUNTIME_ROOT}/lib:/opt/ros/humble/lib:/usr/lib/x86_64-linux-gnu"
+    COMMAND patchelf --force-rpath --set-rpath
+    "${ONNXRUNTIME_ROOT}/lib:/opt/ros/humble/lib:${CMAKE_BINARY_DIR}/crb_ros_msg:/usr/lib/x86_64-linux-gnu"
     $<TARGET_FILE:wbc_fsm>
     COMMENT "Fixing RPATH for wbc_fsm"
 )

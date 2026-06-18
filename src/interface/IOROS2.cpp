@@ -116,46 +116,60 @@ void IOROS2::joyCallback(const crb_ros_msg::msg::JoystickCmdReport::SharedPtr ms
     bool axis_r2    = has(12);  // RT
     bool axis_l2    = has(11);  // LT
 
+    UserCommand prevCmd = _userCmd;
     _userCmd = UserCommand::NONE;
 
     if (btn_start) {
         _userCmd = UserCommand::START;
+        if (prevCmd != UserCommand::START) std::cout << "[Joy] START" << std::endl;
     }
     else if (btn_select) {
         _userCmd = UserCommand::SELECT;
+        if (prevCmd != UserCommand::SELECT) std::cout << "[Joy] BACK (SELECT)" << std::endl;
     }
     else if (btn_r1 && dpad_up) {
         _userCmd = UserCommand::R1_UP;
+        if (prevCmd != UserCommand::R1_UP) std::cout << "[Joy] RB + D-pad UP" << std::endl;
     }
     else if (btn_r1 && dpad_left) {
         _userCmd = UserCommand::R1_LEFT;
+        if (prevCmd != UserCommand::R1_LEFT) std::cout << "[Joy] RB + D-pad LEFT" << std::endl;
     }
     else if (btn_r1 && dpad_right) {
         _userCmd = UserCommand::R1_RIGHT;
+        if (prevCmd != UserCommand::R1_RIGHT) std::cout << "[Joy] RB + D-pad RIGHT" << std::endl;
     }
     else if (btn_r1) {
         _userCmd = UserCommand::R1;
+        if (prevCmd != UserCommand::R1) std::cout << "[Joy] RB" << std::endl;
     }
     else if (axis_r2 && dpad_up) {
         _userCmd = UserCommand::R2_UP;
+        if (prevCmd != UserCommand::R2_UP) std::cout << "[Joy] RT + D-pad UP" << std::endl;
     }
     else if (axis_r2 && dpad_down) {
         _userCmd = UserCommand::R2_DOWN;
+        if (prevCmd != UserCommand::R2_DOWN) std::cout << "[Joy] RT + D-pad DOWN" << std::endl;
     }
     else if (axis_r2 && btn_b) {
         _userCmd = UserCommand::R2_B;
+        if (prevCmd != UserCommand::R2_B) std::cout << "[Joy] RT + B" << std::endl;
     }
     else if (axis_r2 && btn_a) {
         _userCmd = UserCommand::R2_A;
+        if (prevCmd != UserCommand::R2_A) std::cout << "[Joy] RT + A" << std::endl;
     }
     else if (axis_r2) {
         _userCmd = UserCommand::R2;
+        if (prevCmd != UserCommand::R2) std::cout << "[Joy] RT" << std::endl;
     }
     else if (axis_l2 && btn_b) {
         _userCmd = UserCommand::L2_B;
+        if (prevCmd != UserCommand::L2_B) std::cout << "[Joy] LT + B" << std::endl;
     }
     else if (axis_l2) {
         _userCmd = UserCommand::L2;
+        if (prevCmd != UserCommand::L2) std::cout << "[Joy] LT" << std::endl;
     }
 }
 
@@ -165,8 +179,22 @@ void IOROS2::sendRecv(const LowlevelCmd *cmd, LowlevelState *state)
     auto jointCmdMsg = sensor_msgs::msg::JointState();
     jointCmdMsg.header.stamp = _node->now();
 
+    // Joint names must match casbot_bridge joint_names_ array
+    static const char* joint_names[CASBOT_NUM_MOTOR] = {
+        "leg_l1_joint", "leg_l2_joint", "leg_l3_joint",
+        "leg_l4_joint", "leg_l5_joint", "leg_l6_joint",
+        "leg_r1_joint", "leg_r2_joint", "leg_r3_joint",
+        "leg_r4_joint", "leg_r5_joint", "leg_r6_joint",
+        "head_yaw_joint", "head_pitch_joint",
+        "waist_yaw_joint",
+        "l_shoulder_pitch_joint", "l_shoulder_roll_joint", "l_shoulder_yaw_joint",
+        "l_elbow_pitch_joint", "l_wrist_yaw_joint",
+        "r_shoulder_pitch_joint", "r_shoulder_roll_joint", "r_shoulder_yaw_joint",
+        "r_elbow_pitch_joint", "r_wrist_yaw_joint"
+    };
+
     for (int i = 0; i < CASBOT_NUM_MOTOR; i++) {
-        jointCmdMsg.name.push_back("joint_" + std::to_string(i));
+        jointCmdMsg.name.push_back(joint_names[i]);
         jointCmdMsg.position.push_back(cmd->motorCmd[i].q);
         jointCmdMsg.velocity.push_back(cmd->motorCmd[i].dq);
         jointCmdMsg.effort.push_back(cmd->motorCmd[i].tau);

@@ -1,5 +1,5 @@
 {
-    "model_path": "model/wbc/fallAndGetUp2_subject2_clip.onnx",
+    "model_path": "model/wbc/A1-Stand_poses.onnx",
     "data_source": "onnx",
     "motion_path": "motion_data/fallAndGetUp2_subject2_clip_old.npz",
     "total_frames": 965,

@@ -151,7 +151,7 @@ class DataConverter {
   const MotionCommand& motionCommand() const { return command_; }
 
   /// Access last smoothed action (for manual observation construction, e.g. NPZ mode).
-  const std::vector<double>& lastAction() const { return last_action_; }
+  const std::vector<float>& lastAction() const { return last_action_; }
 
   BeyondMimicConfig& config() { return cfg_; }
   const BeyondMimicConfig& config() const { return cfg_; }
@@ -176,7 +176,7 @@ class DataConverter {
  private:
   BeyondMimicConfig cfg_;
   MotionCommand command_;
-  std::vector<double> last_action_;
+  std::vector<float> last_action_;
   TransformAlignment init_align_;
 
   DoFAdapter robot2model_;

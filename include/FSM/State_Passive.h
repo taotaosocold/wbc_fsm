@@ -15,6 +15,7 @@ public:
     FSMStateName checkChange();
 
     double _Kds = 10;
+    double _Kps = 10;
 };
 
 #endif  // PASSIVE_H

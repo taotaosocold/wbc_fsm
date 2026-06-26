@@ -62,8 +62,8 @@ private:
     float _targetPos_rl[NUM_DOF];
     float _last_targetPos_rl[NUM_DOF];
 
-    // Last action for observation (model order, double precision)
-    std::vector<double> _last_action_model;
+    // Last action for observation (model order, float32 to match robojudo)
+    std::vector<float> _last_action_model;
 
     // Observation buffer
     std::vector<float> _observation;

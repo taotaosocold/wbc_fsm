@@ -3,14 +3,15 @@
 
 State_Passive::State_Passive(CtrlComponents *ctrlComp)
              :FSMState(ctrlComp, FSMStateName::PASSIVE, "passive"){
-    _Kds = 0.0;
+    _Kps = 0.0;
+    _Kds = 10.0;
 }
 
 void State_Passive::enter(){
     for(int i=0; i<NUM_DOF; i++){
-        _lowCmd->motorCmd[i].q = 0;
+        _lowCmd->motorCmd[i].q =  0;
         _lowCmd->motorCmd[i].dq = 0;
-        _lowCmd->motorCmd[i].Kp = 0;
+        _lowCmd->motorCmd[i].Kp = _Kps;
         _lowCmd->motorCmd[i].Kd = _Kds;
         _lowCmd->motorCmd[i].tau = 0;
     }

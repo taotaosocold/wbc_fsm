@@ -219,8 +219,8 @@ std::vector<float> DataConverter::buildObservation(
     }
 
     // Relative rotation: q_rel = robot_anchor_quat.conjugate() * anchor_quat_w
-    Eigen::Quaterniond q_rel = robot_anchor_quat.conjugate() * anchor_quat_w;
-    Eigen::Matrix3d R = q_rel.toRotationMatrix();
+    Eigen::Quaternionf q_rel = robot_anchor_quat.cast<float>().conjugate() * anchor_quat_w.cast<float>();
+    Eigen::Matrix3f R = q_rel.toRotationMatrix();
     // First 2 columns in row-major order: R00,R01,R10,R11,R20,R21
     obs.push_back(static_cast<float>(R(0, 0)));
     obs.push_back(static_cast<float>(R(0, 1)));
@@ -263,22 +263,22 @@ std::vector<float> DataConverter::buildObservation(
 std::vector<double> DataConverter::processAction(
     const std::vector<float>& raw_action) {
   int N = cfg_.numDof();
-  std::vector<double> smoothed(N);
+  float beta = cfg_.action_beta;
+  float clip = cfg_.clip_actions;
+  std::vector<float> smoothed(N);
 
   for (int i = 0; i < N; i++) {
-    double beta = static_cast<double>(cfg_.action_beta);
-    smoothed[i] = (1.0 - beta) * last_action_[i]
-                  + beta * static_cast<double>(raw_action[i]);
+    smoothed[i] = (1.0f - beta) * last_action_[i]
+                  + beta * raw_action[i];
   }
 
   std::vector<double> scaled(N);
-  double clip = static_cast<double>(cfg_.clip_actions);
   for (int i = 0; i < N; i++) {
-    double a = std::clamp(smoothed[i], -clip, clip);
-    scaled[i] = a * static_cast<double>(cfg_.action_scales[i]);
+    float a = std::clamp(smoothed[i], -clip, clip);
+    scaled[i] = static_cast<double>(a * cfg_.action_scales[i]);
   }
 
-  last_action_ = smoothed;
+  last_action_ = std::move(smoothed);
   return scaled;
 }
 

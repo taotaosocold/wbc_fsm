@@ -10,6 +10,8 @@ IOROS2::IOROS2()
 
     _jointCmdPub = _node->create_publisher<sensor_msgs::msg::JointState>("/motion/joint_cmd", 10);
 
+    _pdGainsPub = _node->create_publisher<std_msgs::msg::Float64MultiArray>("/motion/pd_gains", 10);
+
     _jointStateSub = _node->create_subscription<sensor_msgs::msg::JointState>(
         "/motion/joint_state", 10,
         std::bind(&IOROS2::jointStateCallback, this, std::placeholders::_1));
@@ -201,6 +203,15 @@ void IOROS2::sendRecv(const LowlevelCmd *cmd, LowlevelState *state)
     }
 
     _jointCmdPub->publish(jointCmdMsg);
+
+    // publish PD gains
+    auto pdGainsMsg = std_msgs::msg::Float64MultiArray();
+    pdGainsMsg.data.resize(CASBOT_NUM_MOTOR * 2);
+    for (int i = 0; i < CASBOT_NUM_MOTOR; i++) {
+        pdGainsMsg.data[i] = cmd->motorCmd[i].Kp;
+        pdGainsMsg.data[i + CASBOT_NUM_MOTOR] = cmd->motorCmd[i].Kd;
+    }
+    _pdGainsPub->publish(pdGainsMsg);
 
     // copy state
     {

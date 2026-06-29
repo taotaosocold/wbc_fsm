@@ -45,6 +45,7 @@ void FSM::run(){
             _currentState = _nextState;
             _currentState->enter();
             _mode = FSMMode::NORMAL;
+            _ctrlComp->lowState->userCmd = UserCommand::NONE;
             _currentState->run();
         }
 

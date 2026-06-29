@@ -132,6 +132,8 @@ private:
     float _anchor_terminate_thresh = 0.5f;
     bool _terminate_flag = false;
     bool _pause_curr_flag = false;
+    const int _decimation = 20;
+    int _decimation_counter = 0;
 
     // NPZ data source helpers
     std::vector<float> _getNPZJointPos(int frame_idx) const;

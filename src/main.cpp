@@ -43,7 +43,7 @@ int main(int argc, char **argv)
 
     CtrlComponents *ctrlComp = new CtrlComponents(ioInter);
     ctrlComp->ctrlPlatform = ctrlPlat;
-    ctrlComp->dt = 0.02;
+    ctrlComp->dt = 0.001;
     ctrlComp->running = &running;
 
     ControlFrame ctrlFrame(ctrlComp);

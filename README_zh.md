@@ -48,6 +48,7 @@
 ### 环境准备
 
 ```bash
+sudo apt install patchelf
 source /opt/ros/humble/setup.bash
 ```
 
@@ -56,7 +57,7 @@ source /opt/ros/humble/setup.bash
 **x86_64（sim2sim）：**
 
 ```bash
-cd /home/casbot/Desktop/wbc_fsm
+cd wbc_fsm
 mkdir -p third_party && cd third_party
 wget https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-linux-x64-1.22.0.tgz
 tar -xzf onnxruntime-linux-x64-1.22.0.tgz
@@ -65,7 +66,7 @@ tar -xzf onnxruntime-linux-x64-1.22.0.tgz
 **aarch64（sim2real，在 ARM 设备上执行）：**
 
 ```bash
-cd /home/casbot/Desktop/wbc_fsm
+cd wbc_fsm
 mkdir -p third_party && cd third_party
 wget https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-linux-aarch64-1.22.0.tgz
 tar -xzf onnxruntime-linux-aarch64-1.22.0.tgz
@@ -73,12 +74,25 @@ tar -xzf onnxruntime-linux-aarch64-1.22.0.tgz
 
 ### 编译 wbc_fsm
 
+编译前先确认 `CMakeLists.txt` 中 ONNX Runtime 路径指向当前平台：
+
+```cmake
+# x86_64 (sim2sim)
+set(ONNXRUNTIME_ROOT ${PROJECT_SOURCE_DIR}/third_party/onnxruntime-linux-x64-1.22.0)
+# aarch64 (sim2real)
+# set(ONNXRUNTIME_ROOT ${PROJECT_SOURCE_DIR}/third_party/onnxruntime-linux-aarch64-1.22.0)
+```
+
+x86_64 用第一行，aarch64 则注释第一行、启用第二行。
+
 ```bash
-cd /home/casbot/Desktop/wbc_fsm
+cd wbc_fsm
 mkdir -p build && cd build
 cmake ..
 make -j$(nproc)
 ```
+
+> **注意**：首次 `cmake ..` 后若切换平台，需 `rm -rf build && mkdir build && cd build && cmake ..` 重新配置。已编译过的 x86 二进制在 ARM 上不能使用，需 clean rebuild。
 
 ## sim2sim 部署流程（x86_64）
 
@@ -86,11 +100,11 @@ make -j$(nproc)
 
 ```bash
 # 编译 casbot_mujoco + casbot_bridge
-cd /home/casbot/Desktop/casbot_mujoco/build
+cd casbot_mujoco/build
 make casbot_mujoco casbot_bridge -j$(nproc)
 
 # 编译 wbc_fsm
-cd /home/casbot/Desktop/wbc_fsm/build
+cd wbc_fsm/build
 make -j$(nproc)
 ```
 
@@ -98,15 +112,15 @@ make -j$(nproc)
 
 ```bash
 # 终端 1：启动 ROS2 桥接
-cd /home/casbot/Desktop/casbot_mujoco/build
+cd casbot_mujoco/build
 ./casbot_bridge
 
 # 终端 2：启动 MuJoCo 仿真（等待 bridge ready 后）
-cd /home/casbot/Desktop/casbot_mujoco/build
+cd casbot_mujoco/build
 ./casbot_mujoco
 
 # 终端 3：启动 ONNX 策略控制器
-cd /home/casbot/Desktop/wbc_fsm/build
+cd wbc_fsm/build
 ./wbc_fsm
 ```
 
@@ -162,12 +176,12 @@ sim2real 不需要 MuJoCo 和共享内存。wbc_fsm 通过 ROS2 话题直接与�
 sudo apt install g++-aarch64-linux-gnu
 
 # 下载 ARM ONNX Runtime
-cd /home/casbot/Desktop/wbc_fsm/third_party
+cd wbc_fsm/third_party
 wget https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-linux-aarch64-1.22.0.tgz
 tar -xzf onnxruntime-linux-aarch64-1.22.0.tgz
 
 # 交叉编译
-cd /home/casbot/Desktop/wbc_fsm/build_arm
+cd wbc_fsm/build_arm
 cmake .. \
   -DCMAKE_TOOLCHAIN_FILE=../cmake/aarch64-toolchain.cmake \
   -DONNXRUNTIME_ROOT=../third_party/onnxruntime-linux-aarch64-1.22.0
@@ -188,26 +202,50 @@ set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 
 #### 2. 或者 ARM 原生编译（在机器人上直接编译）
 
-将 wbc_fsm 代码拷贝到机器人 PC 后：
+将 wbc_fsm 代码拷贝到机器人 PC 后，**切换 `CMakeLists.txt` 中的 ONNX Runtime 路径**：
+
+```cmake
+# x86_64 (sim2sim)
+# set(ONNXRUNTIME_ROOT ${PROJECT_SOURCE_DIR}/third_party/onnxruntime-linux-x64-1.22.0)
+# aarch64 (sim2real)
+set(ONNXRUNTIME_ROOT ${PROJECT_SOURCE_DIR}/third_party/onnxruntime-linux-aarch64-1.22.0)
+```
+
+然后下载依赖并编译：
 
 ```bash
 # 下载 ARM ONNX Runtime
-cd /home/casbot/Desktop/wbc_fsm/third_party
+cd wbc_fsm
+mkdir -p third_party && cd third_party
 wget https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-linux-aarch64-1.22.0.tgz
 tar -xzf onnxruntime-linux-aarch64-1.22.0.tgz
 
 # 编译
-cd /home/casbot/Desktop/wbc_fsm/build
+cd ..
+source /opt/ros/humble/setup.bash
+mkdir -p build && cd build
 cmake ..
 make -j$(nproc)
 ```
+
+# 准备sdk
+准备casbot-motion_2.2.16_arm64.deb在机器人PC上
+sudo dpkg -i casbot-motion_2.2.16_arm64.deb 安装，得到hl_motion
+source /opt/ros/humble/setup.bash 激活ros环境
+cd hl_motion
+source setup.bash 激活sdk
+cd bin
+./hlorin 启动sdk
+进入全身调试模式，等待/motion/joint_cmd 指令
+ros2 service call /motion/whole_body_debug std_srvs/srv/SetBool "{data: true}"
+
 
 #### 3. 运行
 
 ```bash
 # 确保机器人底层驱动已启动（/motion/joint_state 等话题有数据）
 source /opt/ros/humble/setup.bash
-cd /home/casbot/Desktop/wbc_fsm/build
+cd /workspace/wbc_fsm/build
 ./wbc_fsm
 ```
 

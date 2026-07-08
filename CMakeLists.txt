@@ -17,7 +17,10 @@ add_subdirectory(crb_ros_msg)
 find_package(nlohmann_json 3.7.3 REQUIRED)
 find_package(Eigen3 REQUIRED)
 
-set(ONNXRUNTIME_ROOT ${PROJECT_SOURCE_DIR}/onnxruntime-linux-x64-1.22.0)
+# x86_64 (sim2sim)
+set(ONNXRUNTIME_ROOT ${PROJECT_SOURCE_DIR}/third_party/onnxruntime-linux-x64-1.22.0)
+# aarch64 (sim2real)
+# set(ONNXRUNTIME_ROOT ${PROJECT_SOURCE_DIR}/third_party/onnxruntime-linux-aarch64-1.22.0)
 
 include_directories(
     include

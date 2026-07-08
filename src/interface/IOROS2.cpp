@@ -118,60 +118,74 @@ void IOROS2::joyCallback(const crb_ros_msg::msg::JoystickCmdReport::SharedPtr ms
     bool axis_r2    = has(12);  // RT
     bool axis_l2    = has(11);  // LT
 
-    UserCommand prevCmd = _userCmd;
-    _userCmd = UserCommand::NONE;
+    UserCommand detected = UserCommand::NONE;
 
     if (btn_start) {
-        _userCmd = UserCommand::START;
-        if (prevCmd != UserCommand::START) std::cout << "[Joy] START" << std::endl;
+        detected = UserCommand::START;
     }
     else if (btn_select) {
-        _userCmd = UserCommand::SELECT;
-        if (prevCmd != UserCommand::SELECT) std::cout << "[Joy] BACK (SELECT)" << std::endl;
+        detected = UserCommand::SELECT;
     }
     else if (btn_r1 && dpad_up) {
-        _userCmd = UserCommand::R1_UP;
-        if (prevCmd != UserCommand::R1_UP) std::cout << "[Joy] RB + D-pad UP" << std::endl;
+        detected = UserCommand::R1_UP;
     }
     else if (btn_r1 && dpad_left) {
-        _userCmd = UserCommand::R1_LEFT;
-        if (prevCmd != UserCommand::R1_LEFT) std::cout << "[Joy] RB + D-pad LEFT" << std::endl;
+        detected = UserCommand::R1_LEFT;
     }
     else if (btn_r1 && dpad_right) {
-        _userCmd = UserCommand::R1_RIGHT;
-        if (prevCmd != UserCommand::R1_RIGHT) std::cout << "[Joy] RB + D-pad RIGHT" << std::endl;
+        detected = UserCommand::R1_RIGHT;
     }
     else if (btn_r1) {
-        _userCmd = UserCommand::R1;
-        if (prevCmd != UserCommand::R1) std::cout << "[Joy] RB" << std::endl;
+        detected = UserCommand::R1;
     }
     else if (axis_r2 && dpad_up) {
-        _userCmd = UserCommand::R2_UP;
-        if (prevCmd != UserCommand::R2_UP) std::cout << "[Joy] RT + D-pad UP" << std::endl;
+        detected = UserCommand::R2_UP;
     }
     else if (axis_r2 && dpad_down) {
-        _userCmd = UserCommand::R2_DOWN;
-        if (prevCmd != UserCommand::R2_DOWN) std::cout << "[Joy] RT + D-pad DOWN" << std::endl;
+        detected = UserCommand::R2_DOWN;
     }
     else if (axis_r2 && btn_b) {
-        _userCmd = UserCommand::R2_B;
-        if (prevCmd != UserCommand::R2_B) std::cout << "[Joy] RT + B" << std::endl;
+        detected = UserCommand::R2_B;
     }
     else if (axis_r2 && btn_a) {
-        _userCmd = UserCommand::R2_A;
-        if (prevCmd != UserCommand::R2_A) std::cout << "[Joy] RT + A" << std::endl;
+        detected = UserCommand::R2_A;
     }
     else if (axis_r2) {
-        _userCmd = UserCommand::R2;
-        if (prevCmd != UserCommand::R2) std::cout << "[Joy] RT" << std::endl;
+        detected = UserCommand::R2;
     }
     else if (axis_l2 && btn_b) {
-        _userCmd = UserCommand::L2_B;
-        if (prevCmd != UserCommand::L2_B) std::cout << "[Joy] LT + B" << std::endl;
+        detected = UserCommand::L2_B;
     }
     else if (axis_l2) {
-        _userCmd = UserCommand::L2;
-        if (prevCmd != UserCommand::L2) std::cout << "[Joy] LT" << std::endl;
+        detected = UserCommand::L2;
+    }
+
+    // Edge-triggered: only fire when command changes (prevents repeat on hold)
+    if (detected != _lastJoyCmd) {
+        _userCmd = detected;
+        _lastJoyCmd = detected;
+        if (detected != UserCommand::NONE) {
+            std::cout << "[Joy] ";
+            switch (detected) {
+                case UserCommand::START:   std::cout << "START"; break;
+                case UserCommand::SELECT:  std::cout << "BACK (SELECT)"; break;
+                case UserCommand::R1_UP:   std::cout << "RB + D-pad UP"; break;
+                case UserCommand::R1_LEFT: std::cout << "RB + D-pad LEFT"; break;
+                case UserCommand::R1_RIGHT:std::cout << "RB + D-pad RIGHT"; break;
+                case UserCommand::R1:      std::cout << "RB"; break;
+                case UserCommand::R2_UP:   std::cout << "RT + D-pad UP"; break;
+                case UserCommand::R2_DOWN: std::cout << "RT + D-pad DOWN"; break;
+                case UserCommand::R2_B:    std::cout << "RT + B"; break;
+                case UserCommand::R2_A:    std::cout << "RT + A"; break;
+                case UserCommand::R2:      std::cout << "RT"; break;
+                case UserCommand::L2_B:    std::cout << "LT + B"; break;
+                case UserCommand::L2:      std::cout << "LT"; break;
+                default: break;
+            }
+            std::cout << std::endl;
+        }
+    } else {
+        _userCmd = UserCommand::NONE;
     }
 }
 
@@ -235,6 +249,7 @@ void IOROS2::sendRecv(const LowlevelCmd *cmd, LowlevelState *state)
         std::lock_guard<std::mutex> lock(_gamepadMutex);
         state->userCmd = _userCmd;
         state->userValue = _userValue;
+        _userCmd = UserCommand::NONE;  // consumed — prevents same command from persisting
     }
 
     _counter++;

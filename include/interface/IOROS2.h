@@ -39,6 +39,7 @@ private:
     std::mutex _stateMutex;
 
     UserCommand _userCmd;
+    UserCommand _lastJoyCmd = UserCommand::NONE;
     UserValue _userValue;
     std::mutex _gamepadMutex;
 

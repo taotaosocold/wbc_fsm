@@ -2,7 +2,8 @@
 #include <iostream>
 #include <cstring>
 #include <chrono>
-#include <algorithm>
+#include <fcntl.h>
+#include <unistd.h>
 
 IOROS2::IOROS2()
 {
@@ -20,10 +21,6 @@ IOROS2::IOROS2()
         "/motion/imu", 10,
         std::bind(&IOROS2::imuCallback, this, std::placeholders::_1));
 
-    _joySub = _node->create_subscription<crb_ros_msg::msg::JoystickCmdReport>(
-        "/joystick_events", 10,
-        std::bind(&IOROS2::joyCallback, this, std::placeholders::_1));
-
     _counter = 0;
     _userCmd = UserCommand::NONE;
     _userValue.setZero();
@@ -39,11 +36,13 @@ IOROS2::IOROS2()
         }
     });
 
+    _directJoyThread = std::thread(&IOROS2::directJoystickLoop, this);
+
     std::cout << "[IOROS2] Initialized. Topics:" << std::endl;
     std::cout << "  Sub: /motion/joint_state" << std::endl;
     std::cout << "  Sub: /motion/imu" << std::endl;
-    std::cout << "  Sub: /joystick_events" << std::endl;
     std::cout << "  Pub: /motion/joint_cmd" << std::endl;
+    std::cout << "  Joystick: /dev/input/js0 (direct)" << std::endl;
 }
 
 IOROS2::~IOROS2()
@@ -51,6 +50,9 @@ IOROS2::~IOROS2()
     _running = false;
     if (_spinThread.joinable()) {
         _spinThread.join();
+    }
+    if (_directJoyThread.joinable()) {
+        _directJoyThread.join();
     }
 }
 
@@ -87,115 +89,110 @@ void IOROS2::imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg)
     _lowState.imu.accelerometer[2] = static_cast<float>(msg->linear_acceleration.z);
 }
 
-void IOROS2::joyCallback(const crb_ros_msg::msg::JoystickCmdReport::SharedPtr msg)
+// ============================================================================
+// Direct USB joystick reader — reads /dev/input/js0 via Linux joystick API.
+// Same code path for sim2sim (x86) and sim2real (ARM).
+// ============================================================================
+void IOROS2::directJoystickLoop()
 {
-    std::lock_guard<std::mutex> lock(_gamepadMutex);
+    int fd = open("/dev/input/js0", O_RDONLY | O_NONBLOCK);
+    if (fd < 0) {
+        std::cerr << "[IOROS2] ERROR: Cannot open /dev/input/js0" << std::endl;
+        return;
+    }
+    std::cout << "[IOROS2] Joystick reader started on /dev/input/js0" << std::endl;
 
-    // Helper: check if a button ID is in pressed_buttons
-    auto has = [&](uint32_t id) {
-        auto &pb = msg->pressed_buttons;
-        return std::find(pb.begin(), pb.end(), id) != pb.end();
-    };
+    UserCommand lastDetected = UserCommand::NONE;
+    std::set<uint32_t> btns;
+    struct { int16_t x, y, z, rz, hat0x, hat0y; } axes = {};
 
-    // Axes from joystick (left_x/y, right_x/y)
-    _userValue.lx = msg->left_x;
-    _userValue.ly = msg->left_y;
-    _userValue.rx = msg->right_x;
-    _userValue.ry = msg->right_y;
-
-    // D-pad
-    bool dpad_up    = (msg->axis_y < 0);
-    bool dpad_down  = (msg->axis_y > 0);
-    bool dpad_left  = (msg->axis_x < 0);
-    bool dpad_right = (msg->axis_x > 0);
-
-    // Buttons: A=0, B=1, LB=4, RB=5, BACK=6, START=7, LT=11, RT=12
-    bool btn_a      = has(0);
-    bool btn_b      = has(1);
-    bool btn_r1     = has(5);
-    bool btn_start  = has(7);
-    bool btn_select = has(6);
-    bool axis_r2    = has(12);  // RT
-    bool axis_l2    = has(11);  // LT
-
-    UserCommand detected = UserCommand::NONE;
-
-    if (btn_start) {
-        detected = UserCommand::START;
-    }
-    else if (btn_select) {
-        detected = UserCommand::SELECT;
-    }
-    else if (btn_r1 && dpad_up) {
-        detected = UserCommand::R1_UP;
-    }
-    else if (btn_r1 && dpad_left) {
-        detected = UserCommand::R1_LEFT;
-    }
-    else if (btn_r1 && dpad_right) {
-        detected = UserCommand::R1_RIGHT;
-    }
-    else if (btn_r1) {
-        detected = UserCommand::R1;
-    }
-    else if (axis_r2 && dpad_up) {
-        detected = UserCommand::R2_UP;
-    }
-    else if (axis_r2 && dpad_down) {
-        detected = UserCommand::R2_DOWN;
-    }
-    else if (axis_r2 && btn_b) {
-        detected = UserCommand::R2_B;
-    }
-    else if (axis_r2 && btn_a) {
-        detected = UserCommand::R2_A;
-    }
-    else if (axis_r2) {
-        detected = UserCommand::R2;
-    }
-    else if (axis_l2 && btn_b) {
-        detected = UserCommand::L2_B;
-    }
-    else if (axis_l2) {
-        detected = UserCommand::L2;
-    }
-
-    // Edge-triggered: only fire when command changes (prevents repeat on hold)
-    if (detected != _lastJoyCmd) {
-        _userCmd = detected;
-        _lastJoyCmd = detected;
-        if (detected != UserCommand::NONE) {
-            std::cout << "[Joy] ";
-            switch (detected) {
-                case UserCommand::START:   std::cout << "START"; break;
-                case UserCommand::SELECT:  std::cout << "BACK (SELECT)"; break;
-                case UserCommand::R1_UP:   std::cout << "RB + D-pad UP"; break;
-                case UserCommand::R1_LEFT: std::cout << "RB + D-pad LEFT"; break;
-                case UserCommand::R1_RIGHT:std::cout << "RB + D-pad RIGHT"; break;
-                case UserCommand::R1:      std::cout << "RB"; break;
-                case UserCommand::R2_UP:   std::cout << "RT + D-pad UP"; break;
-                case UserCommand::R2_DOWN: std::cout << "RT + D-pad DOWN"; break;
-                case UserCommand::R2_B:    std::cout << "RT + B"; break;
-                case UserCommand::R2_A:    std::cout << "RT + A"; break;
-                case UserCommand::R2:      std::cout << "RT"; break;
-                case UserCommand::L2_B:    std::cout << "LT + B"; break;
-                case UserCommand::L2:      std::cout << "LT"; break;
-                default: break;
+    while (_running && rclcpp::ok()) {
+        struct js_event e;
+        bool updated = false;
+        while (read(fd, &e, sizeof(e)) == sizeof(e)) {
+            updated = true;
+            if ((e.type & ~0x80) == JS_EVENT_BUTTON) {
+                int crb = -1;
+                switch (e.number) {
+                    case 0:  crb = 0;  break;  // A
+                    case 1:  crb = 1;  break;  // B
+                    case 2:  crb = 2;  break;  // X
+                    case 3:  crb = 3;  break;  // Y
+                    case 6:  crb = 4;  break;  // TL → LB
+                    case 7:  crb = 5;  break;  // TR → RB
+                    case 10: crb = 6;  break;  // Select → BACK
+                    case 11: crb = 7;  break;  // Start → START
+                    case 8:  crb = 11; break;  // TL2 → LT
+                    case 9:  crb = 12; break;  // TR2 → RT
+                }
+                std::cout << "[Joy] raw btn=" << (int)e.number
+                          << " val=" << e.value
+                          << " crb=" << crb << std::endl;
+                if (crb >= 0) {
+                    if (e.value) btns.insert(crb); else btns.erase(crb);
+                }
+            } else if ((e.type & ~0x80) == JS_EVENT_AXIS) {
+                switch (e.number) {
+                    case 0: axes.x     = e.value; break;
+                    case 1: axes.y     = e.value; break;
+                    case 2: axes.z     = e.value; break;
+                    case 3: axes.rz    = e.value; break;
+                    case 4: axes.hat0x = e.value; break;
+                    case 5: axes.hat0y = e.value; break;
+                }
             }
-            std::cout << std::endl;
         }
-    } else {
-        _userCmd = UserCommand::NONE;
+
+        if (updated) {
+            auto has = [&](uint32_t id) { return btns.find(id) != btns.end(); };
+
+            bool btn_a      = has(0);
+            bool btn_b      = has(1);
+            bool btn_x      = has(2);
+            bool btn_y      = has(3);
+            bool btn_lb     = has(4);
+            bool btn_rb     = has(5);
+            bool btn_select = has(6);
+            bool btn_start  = has(7);
+            bool axis_lt    = has(11);
+            bool axis_rt    = has(12);
+
+            // Single-button mapping for mode switching
+            UserCommand detected = UserCommand::NONE;
+            if (btn_start)        detected = UserCommand::START;
+            else if (btn_select)  detected = UserCommand::SELECT;
+            else if (btn_a)       detected = UserCommand::R2_A;
+            else if (btn_b)       detected = UserCommand::L2_B;
+            else if (btn_x)       detected = UserCommand::R2;
+            else if (btn_y)       detected = UserCommand::R1;
+            else if (btn_rb)      detected = UserCommand::R1_UP;
+            else if (btn_lb)      detected = UserCommand::R2_B;
+            else if (axis_lt)     detected = UserCommand::L2;
+            else if (axis_rt)     detected = UserCommand::R2;
+
+            std::lock_guard<std::mutex> lock(_gamepadMutex);
+            _userValue.lx = axes.x / 32767.0f;
+            _userValue.ly = axes.y / 32767.0f;
+            _userValue.rx = axes.z / 32767.0f;
+            _userValue.ry = axes.rz / 32767.0f;
+
+            if (detected != lastDetected) {
+                _userCmd = detected;
+                lastDetected = detected;
+                if (detected != UserCommand::NONE)
+                    std::cout << "[Joy] " << static_cast<int>(detected) << std::endl;
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::microseconds(500));
     }
+    close(fd);
 }
 
 void IOROS2::sendRecv(const LowlevelCmd *cmd, LowlevelState *state)
 {
-    // publish joint command
     auto jointCmdMsg = sensor_msgs::msg::JointState();
     jointCmdMsg.header.stamp = _node->now();
 
-    // Joint names must match casbot_bridge joint_names_ array
     static const char* joint_names[CASBOT_NUM_MOTOR] = {
         "leg_l1_joint", "leg_l2_joint", "leg_l3_joint",
         "leg_l4_joint", "leg_l5_joint", "leg_l6_joint",
@@ -218,7 +215,6 @@ void IOROS2::sendRecv(const LowlevelCmd *cmd, LowlevelState *state)
 
     _jointCmdPub->publish(jointCmdMsg);
 
-    // publish PD gains
     auto pdGainsMsg = std_msgs::msg::Float64MultiArray();
     pdGainsMsg.data.resize(CASBOT_NUM_MOTOR * 2);
     for (int i = 0; i < CASBOT_NUM_MOTOR; i++) {
@@ -227,7 +223,6 @@ void IOROS2::sendRecv(const LowlevelCmd *cmd, LowlevelState *state)
     }
     _pdGainsPub->publish(pdGainsMsg);
 
-    // copy state
     {
         std::lock_guard<std::mutex> lock(_stateMutex);
 
@@ -249,7 +244,7 @@ void IOROS2::sendRecv(const LowlevelCmd *cmd, LowlevelState *state)
         std::lock_guard<std::mutex> lock(_gamepadMutex);
         state->userCmd = _userCmd;
         state->userValue = _userValue;
-        _userCmd = UserCommand::NONE;  // consumed — prevents same command from persisting
+        _userCmd = UserCommand::NONE;
     }
 
     _counter++;

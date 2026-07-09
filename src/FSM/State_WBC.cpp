@@ -282,7 +282,7 @@ void State_WBC::_observations_compute_onnx()
         _lowState->imu.quaternion[1],
         _lowState->imu.quaternion[2],
         _lowState->imu.quaternion[3]);
-
+    
     Eigen::Vector3d base_ang_vel(
         static_cast<double>(_lowState->imu.gyroscope[0]),
         static_cast<double>(_lowState->imu.gyroscope[1]),
@@ -533,7 +533,6 @@ void State_WBC::enter()
     _pause_flag = false;
     _terminate_flag = false;
     _pause_curr_flag = false;
-    _decimation_counter = 0;
     _refer_idx = _start_refer_idx;
     _last_refer_idx = _refer_idx;
 
@@ -668,31 +667,16 @@ void State_WBC::enter()
 
 void State_WBC::run()
 {
-    // Handle pause: when unpausing, restore the pause reference index.
     if (_pause_flag && !_pause_curr_flag) {
         _refer_idx = _pause_refer_idx;
     }
 
-    _decimation_counter++;
-
-    // Run ONNX inference every DECIMATION cycles (50Hz), but publish motor
-    // commands every cycle (1kHz) — same target values between inferences.
-    if (_decimation_counter % _decimation == 0) {
-        if (_data_source == "onnx") {
-            _observations_compute_onnx();
-            _action_compute_onnx();
-        } else {
-            _observations_compute_npz();
-            _action_compute_npz();
-        }
-
-        // Increment _refer_idx only when inference actually runs
-        if (!_pause_flag) {
-            _refer_idx++;
-        }
-        if (_refer_idx >= _end_refer_idx) {
-            _refer_idx = _end_refer_idx;
-        }
+    if (_data_source == "onnx") {
+        _observations_compute_onnx();
+        _action_compute_onnx();
+    } else {
+        _observations_compute_npz();
+        _action_compute_npz();
     }
 
     for (int j = 0; j < NUM_DOF; j++) {
@@ -705,6 +689,13 @@ void State_WBC::run()
         _last_targetPos_rl[j] = _targetPos_rl[j];
     }
     _last_refer_idx = _refer_idx;
+
+    if (!_pause_flag) {
+        _refer_idx++;
+    }
+    if (_refer_idx >= _end_refer_idx) {
+        _refer_idx = _end_refer_idx;
+    }
 
     std::string pause_string = _pause_flag ? " | Press R1 to resume..." : " | Press R2 to pause...";
     std::cout << "\r[State_WBC] Running. Refer idx: " << _refer_idx

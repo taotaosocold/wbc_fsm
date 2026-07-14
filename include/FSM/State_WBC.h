@@ -130,6 +130,7 @@ private:
     int _motion_frame_count = 0;
     const std::vector<float> _gravity_vec = {0.0f, 0.0f, -1.0f};
     float _anchor_terminate_thresh = 0.5f;
+    float _action_beta = 1.0f;
     bool _terminate_flag = false;
     bool _pause_curr_flag = false;
 

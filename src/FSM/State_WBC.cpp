@@ -92,6 +92,7 @@ State_WBC::State_WBC(CtrlComponents *ctrlComp)
         _pause_refer_idx = config["pause_idx"].get<int>();
         _end_refer_idx = config["end_idx"].get<int>();
         _total_frames = config.value("total_frames", 0);
+        _action_beta = config.value("action_beta", 1.0f);
 
         std::cout << "[Config] Model path: " << _model_path << std::endl;
         std::cout << "[Config] Data source: " << _data_source << std::endl;
@@ -245,7 +246,7 @@ void State_WBC::_loadPolicy()
     cfg.use_motion_from_model   = true;
     cfg.use_residual_action     = false;
     cfg.override_robot_anchor_pos = true;
-    cfg.action_beta           = 1.0f;
+    cfg.action_beta           = _action_beta;
     cfg.clip_actions          = 100.0f;
     cfg.robot_joint_names     = bus_names;
     cfg.joint_name_map        = name_map;

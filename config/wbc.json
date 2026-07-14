@@ -1,10 +1,11 @@
 {
-    "model_path": "model/wbc/fk.onnx",
+    "model_path": "model/wbc/fk_beyondmimic.onnx",
     "data_source": "onnx",
     "motion_path": "motion_data/fallAndGetUp2_subject2_clip_old.npz",
-    "total_frames": 965,
+    "total_frames": 2000,
     "start_idx": 0,
     "end_idx": -1,
     "pause_idx": 350,
-    "safe_projgravity_threshold": 0.6
+    "safe_projgravity_threshold": 0.6,
+    "action_beta": 1.0
 }

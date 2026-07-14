@@ -238,7 +238,7 @@ cd bin
 ./hlorin 启动sdk
 进入全身调试模式，等待/motion/joint_cmd 指令
 ros2 service call /motion/whole_body_debug std_srvs/srv/SetBool "{data: true}"
-
+ros2 service call /motion/upper_body_debug std_srvs/srv/SetBool "{data: true}"
 
 #### 3. 运行
 

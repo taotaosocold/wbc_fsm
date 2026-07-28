@@ -200,10 +200,10 @@ void IOROS2::sendRecv(const LowlevelCmd *cmd, LowlevelState *state)
         "leg_r4_joint", "leg_r5_joint", "leg_r6_joint",
         "head_yaw_joint", "head_pitch_joint",
         "waist_yaw_joint",
-        "l_shoulder_pitch_joint", "l_shoulder_roll_joint", "l_shoulder_yaw_joint",
-        "l_elbow_pitch_joint", "l_wrist_yaw_joint",
-        "r_shoulder_pitch_joint", "r_shoulder_roll_joint", "r_shoulder_yaw_joint",
-        "r_elbow_pitch_joint", "r_wrist_yaw_joint"
+        "left_shoulder_pitch_joint", "left_shoulder_roll_joint", "left_shoulder_yaw_joint",
+        "left_elbow_pitch_joint", "left_wrist_yaw_joint",
+        "right_shoulder_pitch_joint", "right_shoulder_roll_joint", "right_shoulder_yaw_joint",
+        "right_elbow_pitch_joint", "right_wrist_yaw_joint"
     };
 
     for (int i = 0; i < CASBOT_NUM_MOTOR; i++) {

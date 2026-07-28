@@ -1,8 +1,8 @@
 {
-    "model_path": "model/wbc/fk_beyondmimic.onnx",
+    "model_path": "model/wbc/fallAndGetUp2_subject2_clip_fliter_0.75scale_with_head_kp_kd.onnx",
     "data_source": "onnx",
     "motion_path": "motion_data/fallAndGetUp2_subject2_clip_old.npz",
-    "total_frames": 250,
+    "total_frames": 1000,
     "start_idx": 0,
     "end_idx": -1,
     "pause_idx": 350,
